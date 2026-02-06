@@ -1,4 +1,6 @@
 import re
+import asyncio
+from aiohttp import web
 from pyrogram import Client, filters
 from config import Config
 
@@ -9,7 +11,21 @@ app = Client(
     bot_token=Config.BOT_TOKEN
 )
 
-# Helper: Name Cleaning
+# --- WEB SERVER FOR KOYEB HEALTH CHECK ---
+async def health_check(request):
+    return web.Response(text="Bot is running!")
+
+async def start_web_server():
+    server = web.Application()
+    server.add_routes([web.get('/', health_check)])
+    runner = web.AppRunner(server)
+    await runner.setup()
+    # Koyeb looks for Port 8000 by default
+    site = web.TCPSite(runner, '0.0.0.0', 8000)
+    await site.start()
+    print("Web server started on port 8000 for health checks.")
+
+# --- BOT LOGIC ---
 def get_clean_name(text):
     if not text: return "New Video"
     patterns = [
@@ -23,13 +39,11 @@ def get_clean_name(text):
         text = re.sub(p, "", text)
     return text.strip()
 
-# Helper: Time Formatting
 def format_duration(seconds):
     m, s = divmod(seconds, 60)
     h, m = divmod(m, 60)
     return f"{h}h {m}m {s}s" if h > 0 else f"{m}m {s}s"
 
-# Notification Logic
 @app.on_message(filters.chat(Config.DB_CHANNEL_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
     raw_name = message.caption or (message.video.file_name if message.video else "Video File")
@@ -55,18 +69,25 @@ async def handle_video(client, message):
     except Exception as e:
         print(f"Error: {e}")
 
-# Startup and Restart Notification
-async def start_bot():
+# --- STARTUP SEQUENCE ---
+async def main():
+    # Start web server first to satisfy Koyeb health check
+    await start_web_server()
+    
+    # Start the bot
     await app.start()
     bot_info = await app.get_me()
-    print(f"@{bot_info.username} started successfully!")
+    print(f"@{bot_info.username} is online.")
     
-    # Send a message to the owner or the updates channel when the bot starts
-    startup_msg = "✅ <b>Bot Started Successfully!</b>\n\n<i>The video provider service is now active and monitoring the database channel.</i>"
+    # Send Restart/Start Message
+    status_text = "🚀 <b>Bot Re-started Successfully!</b>\n\nWeb server is live on Port 8000.\nMonitoring DB Channel..."
+    target = Config.OWNER_ID if Config.OWNER_ID != 0 else Config.UPDATES_CHANNEL_ID
     try:
-        await app.send_message(Config.OWNER_ID or Config.UPDATES_CHANNEL_ID, startup_msg)
-    except Exception:
-        pass # Fallback if IDs are not set correctly
+        await app.send_message(target, status_text)
+    except:
+        pass
+        
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    app.run(start_bot())
+    asyncio.run(main())
