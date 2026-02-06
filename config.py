@@ -6,3 +6,5 @@ class Config:
     BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
     DB_CHANNEL_ID = int(os.environ.get("DB_CHANNEL_ID", "0"))
     UPDATES_CHANNEL_ID = int(os.environ.get("UPDATES_CHANNEL_ID", "0"))
+    # ADD THIS LINE BELOW
+    OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
