@@ -9,6 +9,7 @@ app = Client(
     bot_token=Config.BOT_TOKEN
 )
 
+# Helper: Name Cleaning
 def get_clean_name(text):
     if not text: return "New Video"
     patterns = [
@@ -22,11 +23,13 @@ def get_clean_name(text):
         text = re.sub(p, "", text)
     return text.strip()
 
+# Helper: Time Formatting
 def format_duration(seconds):
     m, s = divmod(seconds, 60)
     h, m = divmod(m, 60)
     return f"{h}h {m}m {s}s" if h > 0 else f"{m}m {s}s"
 
+# Notification Logic
 @app.on_message(filters.chat(Config.DB_CHANNEL_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
     raw_name = message.caption or (message.video.file_name if message.video else "Video File")
@@ -50,7 +53,20 @@ async def handle_video(client, message):
         else:
             await client.send_message(Config.UPDATES_CHANNEL_ID, text=caption)
     except Exception as e:
-        print(f"Error sending update: {e}")
+        print(f"Error: {e}")
 
-print("Bot is starting...")
-app.run()
+# Startup and Restart Notification
+async def start_bot():
+    await app.start()
+    bot_info = await app.get_me()
+    print(f"@{bot_info.username} started successfully!")
+    
+    # Send a message to the owner or the updates channel when the bot starts
+    startup_msg = "✅ <b>Bot Started Successfully!</b>\n\n<i>The video provider service is now active and monitoring the database channel.</i>"
+    try:
+        await app.send_message(Config.OWNER_ID or Config.UPDATES_CHANNEL_ID, startup_msg)
+    except Exception:
+        pass # Fallback if IDs are not set correctly
+
+if __name__ == "__main__":
+    app.run(start_bot())
